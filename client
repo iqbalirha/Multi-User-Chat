@@ -1,0 +1,77 @@
+import socket
+import threading
+
+class ChatClient:
+    def __init__(self):
+        self.server_ip = None
+        self.host = '127.0.0.1'
+        self.port = 5555
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.nickname = None
+
+    def set_server_ip(self):
+        self.server_ip = input("Enter server IP address: ")
+
+    def connect(self):
+        if not self.server_ip:
+            self.set_server_ip()
+        self.client_socket.connect((self.server_ip, self.port))
+        self.nickname = input("Enter your nickname: ")
+        self.client_socket.sendall(self.nickname.encode())
+
+    def receive_messages(self):
+        try:
+            while True:
+                message = self.client_socket.recv(1024).decode()
+                if not message:
+                    print("Disconnected from server.")
+                    break
+                print(message)
+        except (ConnectionResetError, ConnectionAbortedError):
+            print("Disconnected from server.")
+
+        self.client_socket.close()
+
+    def send_message(self, message):
+        self.client_socket.sendall(message.encode())
+
+    def disconnect(self):
+        self.client_socket.sendall(b'')
+        self.client_socket.close()
+
+    def create_channel(self, channel_name):
+        self.client_socket.sendall(f"/create {channel_name}".encode())
+
+    def invite_to_channel(self, channel_name, invitee):
+        self.client_socket.sendall(f"/invite {channel_name} {invitee}".encode())
+
+    def accept_invitation(self, channel_name):
+        self.client_socket.sendall(f"/join {channel_name}".encode())
+
+if __name__ == "__main__":
+    client = ChatClient()
+    client.connect()
+
+    threading.Thread(target=client.receive_messages).start()
+
+    while True:
+        message = input("Enter your message (type 'python/private nickname message' for private message, "
+                        "'\n /create channel_name' to create a channel, "
+                        "'\n /invite channel_name nickname' to invite a user, "
+                        "'\n/join channel_name' to accept an invitation, 'exit' to quit): ")
+
+    #    message = input("Enter your message (type '/private nickname message' for private message, '/create channel_name' to create a channel, '/invite channel_name nickname' to invite a user, '/join channel_name' to accept an invitation, 'exit' to quit): ")
+        if message.lower() == 'exit':
+            client.disconnect()
+            break
+        elif message.startswith('/create '):
+            channel_name = message.split()[1]
+            client.create_channel(channel_name)
+        elif message.startswith('/invite '):
+            _, channel_name, invitee = message.split()
+            client.invite_to_channel(channel_name, invitee)
+        elif message.startswith('/join '):
+            channel_name = message.split()[1]
+            client.accept_invitation(channel_name)
+        else:
+            client.send_message(message)
